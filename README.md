@@ -1,64 +1,81 @@
-# nri — no reel instagram
+# InstaLimit
 
-InstaLimit is a companion Android app that keeps Instagram within a daily limit and replaces
+A companion Android app for Instagram that enforces a daily watch limit and replaces
 Reels/stories with motivational messages.
 
-**This is not a modified Instagram APK.** Instagram itself is untouched. This app uses
-Android's usage-stat and accessibility APIs to enforce your rules.
+**It does not modify, patch, or repackage Instagram.** Your original Instagram APK stays
+untouched. InstaLimit uses Android's own usage-stat and accessibility APIs to watch when
+Instagram is open and to close it when you've had enough.
 
-## Features
+## What it does
 
-- Asks **"How much do you want to watch today?"** on first launch (1–6 hours).
-- Tracks real Instagram foreground time and counts down your remaining budget.
-- When the limit is reached: leaves Instagram, shows **"You've hit your limit."** and a
-  motivational message, then sends a notification.
-- When a Reel or someone else's story is detected: leaves that screen and shows a
-  motivational message such as *"You're wasting your potential."*
-- Lets you change today's limit at any time. There is no permanent app lock.
-- Resets each local day. All data stays on the device.
+- On first launch asks **"How much do you want to watch today?"** with options **1–6 hours**.
+- Counts real time spent in Instagram (via `UsageStatsManager`, with an accessibility-based
+  fallback if usage access is not granted).
+- When the limit is reached it **leaves Instagram** and shows **"You've hit your limit."**
+  plus a motivational message.
+- When the **Reels** tab is visible, an invisible overlay sits exactly over that tab and
+  swallows taps — tapping Reels does nothing. This needs the "Display over other apps"
+  permission.
+- If someone still gets into a Reel or story, it leaves that screen and shows a motivational
+  message instead (e.g. *"You're wasting your potential."*).
+- Sends a notification when it blocks something.
+- Resets the timer automatically at local midnight. The chosen daily limit is remembered.
+- Lets you **change today's limit at any time** — including after hitting it. There is no
+  "app can never be opened again" lock.
 
-## Download
+## Permissions you must enable
 
-Grab the latest prebuilt APK from the **Releases** page:
-https://github.com/12hrformat/nri/releases
+1. **Usage access** – found in the app's "Finish setup" card. Required for accurate timing.
+2. **Accessibility service** – find **InstaLimit guard** under
+   Settings → Accessibility → Downloaded services, and switch it on. This is what allows
+   the app to close Instagram and detect Reels/stories.
+3. **Display over other apps** – required for the invisible Reels tap shield.
+4. **Notifications** (Android 13+) – for alerts.
 
-Install it on Android 8.0 (API 26) or newer, then:
+Nothing leaves your device. All state is stored in local `SharedPreferences`.
 
-1. Open the app and pick 1–6 hours.
-2. Grant **Usage access** from the "Finish setup" card.
-3. Enable **InstaLimit guard** under Settings → Accessibility → Downloaded services.
-4. Grant **Notifications** if prompted (Android 13+).
+## How to build
 
-## Build from source
+You need **Android Studio Ladybug (2024.2.1) or newer**, Android SDK 35, and JDK 17
+(Android Studio bundles a suitable JDK).
 
-Requires Android Studio Ladybug (2024.2.1)+ with Android SDK 35 and JDK 17+:
+1. Open Android Studio → **Open** → select `C:\Users\dragon\Documents\instagram-control`.
+2. Let Gradle sync and download dependencies.
+3. Connect a device or start an emulator, then press **Run** (▶).
+   - Or build an installable APK: **Build → Build Bundle(s) / APK(s) → Build APK(s)**.
+   - The APK appears in `app/build/outputs/apk/debug/app-debug.apk`.
+4. Install it on your phone, open it, pick a limit, then grant the three permissions.
 
-```bash
-git clone https://github.com/12hrformat/nri.git
-cd nri
-./gradlew assembleDebug
-# APK: app/build/outputs/apk/debug/app-debug.apk
+Command line (optional, if you have the Android SDK configured):
+
+```powershell
+cd C:\Users\dragon\Documents\instagram-control
+.\gradlew assembleDebug
 ```
 
-On Windows use `gradlew.bat assembleDebug`.
+## Important limitations — please read
 
-## Limitations
+- **This is not a modified Instagram.** Instagram itself is untouched, so its own UI still
+  contains the Reels tab and story tray. InstaLimit reacts to them and kicks you out. It
+  cannot permanently remove those buttons from Instagram's interface.
+- Reels/stories detection uses accessibility labels and screen class names. Instagram
+  changes its UI often, so detection is **heuristic** and may occasionally miss a screen or
+  trigger falsely. Use the toggles in the app to turn individual blocks on/off.
+- Accessibility-based blocking is a self-control aid, not a security boundary. Android lets
+  you disable any accessibility service at any time.
+- Instagram's own notifications and links can still launch Instagram directly. The guard
+  catches it as soon as the app appears, but a brief flash of the app may be visible.
+- The "fallback" timer (used when usage access is off) counts time between Instagram opening
+  and closing, so it can be slightly less accurate than usage stats.
 
-- Instagram's own Reels tab and story tray still exist inside Instagram. This app reacts to
-  them and closes those screens; it cannot delete buttons from Instagram's UI.
-- Reels/stories detection uses screen class names and accessibility text, so it is heuristic
-  and can miss or falsely trigger depending on Instagram's version. Individual blocks can be
-  toggled off in the app.
-- Accessibility services can be disabled by the user at any time, so this is a self-control
-  aid rather than a security restriction.
+## Files of interest
 
-## Source layout
-
-| Path | Purpose |
+| File | Purpose |
 | --- | --- |
-| `app/src/main/java/com/instalimit/guard/MainActivity.kt` | Setup + dashboard |
+| `app/src/main/java/com/instalimit/guard/MainActivity.kt` | Setup + dashboard UI |
 | `app/src/main/java/com/instalimit/guard/BlockActivity.kt` | Motivational block screen |
-| `app/src/main/java/com/instalimit/guard/InstaGuardService.kt` | Accessibility engine + usage polling |
+| `app/src/main/java/com/instalimit/guard/InstaGuardService.kt` | Accessibility engine and usage polling |
 | `app/src/main/java/com/instalimit/guard/Prefs.kt` | Local state and daily reset |
-| `app/src/main/java/com/instalimit/guard/MotivationalQuotes.kt` | Block messages |
-| `app/src/main/java/com/instalimit/guard/ui/Screens.kt` | Compose UI |
+| `app/src/main/java/com/instalimit/guard/MotivationalQuotes.kt` | The messages shown when blocked |
+| `app/src/main/java/com/instalimit/guard/ui/Screens.kt` | Compose screens |

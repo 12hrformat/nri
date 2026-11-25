@@ -4,6 +4,7 @@ import android.app.AppOpsManager
 import android.content.Context
 import android.os.Build
 import android.os.Process
+import android.provider.Settings
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -132,6 +133,9 @@ object Prefs {
             ) == AppOpsManager.MODE_ALLOWED
         }
     }
+
+    fun hasOverlayPermission(context: Context): Boolean =
+        Settings.canDrawOverlays(context)
 
     fun hasNotificationPermission(context: Context): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return true

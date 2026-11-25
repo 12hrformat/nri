@@ -116,6 +116,7 @@ fun HomeScreen(
     usageAccessGranted: Boolean,
     accessibilityEnabled: Boolean,
     notificationGranted: Boolean,
+    overlayGranted: Boolean,
     onOpenInstagram: () -> Unit,
     onChangeLimit: () -> Unit,
     onToggleReels: (Boolean) -> Unit,
@@ -123,7 +124,8 @@ fun HomeScreen(
     onToggleQuotes: (Boolean) -> Unit,
     onUsageSettings: () -> Unit,
     onAccessibilitySettings: () -> Unit,
-    onNotificationRequest: () -> Unit
+    onNotificationRequest: () -> Unit,
+    onOverlaySettings: () -> Unit
 ) {
     val progress = (usedMs.toFloat() / (limitHours * AppConfig.HOUR_MS)).coerceIn(0f, 1f)
 
@@ -214,6 +216,7 @@ fun HomeScreen(
             if (!usageAccessGranted) add("Usage access" to onUsageSettings)
             if (!accessibilityEnabled) add("Accessibility service" to onAccessibilitySettings)
             if (!notificationGranted) add("Notifications" to onNotificationRequest)
+            if (!overlayGranted) add("Display over other apps" to onOverlaySettings)
         }
 
         if (missing.isNotEmpty()) {

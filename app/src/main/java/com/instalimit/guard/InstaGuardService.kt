@@ -5,10 +5,17 @@ import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.app.NotificationCompat
@@ -32,9 +39,14 @@ class InstaGuardService : AccessibilityService() {
     private val usageStats: UsageStatsManager by lazy {
         getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
     }
+    private val windowManager: WindowManager by lazy {
+        getSystemService(Context.WINDOW_SERVICE) as WindowManager
+    }
 
     private var lastBlockAt = 0L
     private var instagramOpenedAt = 0L
+    private var overlayView: View? = null
+    private var lastReelsRect: Rect? = null
 
     private val pollRunnable = object : Runnable {
         override fun run() {
@@ -60,6 +72,7 @@ class InstaGuardService : AccessibilityService() {
 
     override fun onDestroy() {
         handler.removeCallbacksAndMessages(null)
+        hideReelsShield()
         super.onDestroy()
     }
 
@@ -81,9 +94,17 @@ class InstaGuardService : AccessibilityService() {
                 return
             }
 
+            val root = rootInActiveWindow
+
+            // Invisible shield over the Reels tab: taps land here and do nothing.
+            if (Prefs.blockReels(this) && Settings.canDrawOverlays(this)) {
+                updateReelsShield(root)
+            } else {
+                hideReelsShield()
+            }
+
             if (System.currentTimeMillis() - lastBlockAt < COOLDOWN_MS) return
 
-            val root = rootInActiveWindow
             if (Prefs.blockReels(this) && looksLikeReels(event, root)) {
                 block(AppConfig.REASON_REELS)
                 return
@@ -93,6 +114,7 @@ class InstaGuardService : AccessibilityService() {
                 return
             }
         } else if (instagramOpenedAt != 0L) {
+            hideReelsShield()
             // Fallback timing when usage-access permission was not granted.
             if (!Prefs.hasUsageAccess(this)) {
                 Prefs.addFallbackMs(this, System.currentTimeMillis() - instagramOpenedAt)
@@ -134,6 +156,97 @@ class InstaGuardService : AccessibilityService() {
             Prefs.markLimitReached(this)
             block(AppConfig.REASON_LIMIT)
         }
+    }
+
+    private fun updateReelsShield(root: AccessibilityNodeInfo?) {
+        val rect = findReelsTabRect(root)
+        if (rect == null || rect.width() < 8 || rect.height() < 8) {
+            hideReelsShield()
+            return
+        }
+        val previous = lastReelsRect
+        if (previous != null &&
+            previous.left == rect.left && previous.top == rect.top &&
+            previous.right == rect.right && previous.bottom == rect.bottom
+        ) return
+        lastReelsRect = rect
+
+        val view = overlayView ?: createShieldView() ?: return
+        val params = view.layoutParams as WindowManager.LayoutParams
+        params.x = rect.left
+        params.y = rect.top
+        params.width = rect.width()
+        params.height = rect.height()
+        params.gravity = Gravity.TOP or Gravity.START
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not position Reels shield", e)
+        }
+    }
+
+    private fun createShieldView(): View? {
+        if (!Settings.canDrawOverlays(this)) return null
+        val view = View(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            // Consume the tap so the Reels tab never receives it.
+            setOnTouchListener { _, _ -> true }
+        }
+        val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
+        } else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val params = WindowManager.LayoutParams(
+            1, 1, type,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT
+        ).apply { gravity = Gravity.TOP or Gravity.START }
+
+        return try {
+            windowManager.addView(view, params)
+            overlayView = view
+            view
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not create Reels shield", e)
+            null
+        }
+    }
+
+    private fun hideReelsShield() {
+        lastReelsRect = null
+        overlayView?.let { view ->
+            try {
+                windowManager.removeView(view)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not remove Reels shield", e)
+            }
+        }
+        overlayView = null
+    }
+
+    private fun findReelsTabRect(node: AccessibilityNodeInfo?): Rect? {
+        if (node == null) return null
+        val label = buildString {
+            append(node.text?.toString().orEmpty())
+            append(' ')
+            append(node.contentDescription?.toString().orEmpty())
+        }.lowercase(Locale.getDefault()).trim()
+
+        if (label.contains("reels") && (node.isClickable || node.isFocusable)) {
+            val rect = Rect()
+            node.getBoundsInScreen(rect)
+            if (rect.width() > 0 && rect.height() > 0) return rect
+        }
+
+        for (i in 0 until node.childCount) {
+            val child = node.getChild(i) ?: continue
+            val found = findReelsTabRect(child)
+            if (found != null) return found
+        }
+        return null
     }
 
     private fun looksLikeReels(event: AccessibilityEvent, root: AccessibilityNodeInfo?): Boolean {
@@ -179,6 +292,7 @@ class InstaGuardService : AccessibilityService() {
         val now = System.currentTimeMillis()
         if (now - lastBlockAt < COOLDOWN_MS) return
         lastBlockAt = now
+        hideReelsShield()
 
         val quote = if (Prefs.showQuotes(this)) {
             MotivationalQuotes.forReason(reason)

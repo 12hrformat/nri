@@ -63,6 +63,7 @@ class MainActivity : ComponentActivity() {
                 val usageOk = remember(tick) { Prefs.hasUsageAccess(context) }
                 val accessOk = remember(tick) { isAccessibilityEnabled(context) }
                 val notifOk = remember(tick) { Prefs.hasNotificationPermission(context) }
+                val overlayOk = remember(tick) { Prefs.hasOverlayPermission(context) }
 
                 if (showSetup) {
                     SetupScreen(onLimitChosen = { chosen ->
@@ -81,6 +82,7 @@ class MainActivity : ComponentActivity() {
                         usageAccessGranted = usageOk,
                         accessibilityEnabled = accessOk,
                         notificationGranted = notifOk,
+                        overlayGranted = overlayOk,
                         onOpenInstagram = { openInstagram() },
                         onChangeLimit = { showSetup = true },
                         onToggleReels = {
@@ -102,6 +104,18 @@ class MainActivity : ComponentActivity() {
                         onNotificationRequest = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                                 notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        },
+                        onOverlaySettings = {
+                            try {
+                                startActivity(
+                                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                                        data = Uri.parse("package:$packageName")
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                )
+                            } catch (e: ActivityNotFoundException) {
+                                openSettings(Settings.ACTION_SETTINGS)
                             }
                         }
                     )
