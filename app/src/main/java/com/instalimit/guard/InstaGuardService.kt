@@ -1,7 +1,7 @@
 package com.instalimit.guard
 
 import android.accessibilityservice.AccessibilityService
-import android.app.UsageStatsManager
+import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
