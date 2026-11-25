@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">InstaLimit</string>
+    <string name="accessibility_label">InstaLimit guard</string>
+    <string name="accessibility_description">
+        Watches Instagram so InstaLimit can close it when your daily limit is reached,
+        and replaces Reels and stories with a motivational message.
+    </string>
+</resources>
